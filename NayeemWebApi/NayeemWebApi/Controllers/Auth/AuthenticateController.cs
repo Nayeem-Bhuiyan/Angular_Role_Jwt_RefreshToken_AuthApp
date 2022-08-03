@@ -50,7 +50,7 @@ namespace NayeemWebApi.Controllers.Auth
                 {
                     authClaims.Add(new Claim(ClaimTypes.Role, userRole));
                 }
-
+               
                 var token = CreateToken(authClaims);
                 var refreshToken = GenerateRefreshToken();
 
@@ -93,6 +93,10 @@ namespace NayeemWebApi.Controllers.Auth
             }
             else
             {
+                //if (!await _roleManager.RoleExistsAsync("User"))
+                //{
+                //    await _roleManager.CreateAsync(new IdentityRole("User"));
+                //}
                 await _userManager.AddToRoleAsync(user, UserRoles.User);
             }
                 
@@ -119,9 +123,9 @@ namespace NayeemWebApi.Controllers.Auth
                 return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "User creation failed! Please check user details and try again." });
 
             //if (!await _roleManager.RoleExistsAsync("Admin"))
-            //    await _roleManager.CreateAsync(new ApplicationRole(""));
+            //    await _roleManager.CreateAsync(new IdentityRole(""));
             //if (!await _roleManager.RoleExistsAsync(UserRoles.User))
-            //    await _roleManager.CreateAsync(new ApplicationRole(UserRoles.User));
+            //    await _roleManager.CreateAsync(new IdentityRole(UserRoles.User));
 
             if (await _roleManager.RoleExistsAsync(UserRoles.Admin))
             {
@@ -231,24 +235,60 @@ namespace NayeemWebApi.Controllers.Auth
             return Convert.ToBase64String(randomNumber);
         }
 
-        private ClaimsPrincipal? GetPrincipalFromExpiredToken(string? token)
+
+
+
+
+
+        //private ClaimsPrincipal? GetPrincipalFromExpiredToken(string? token)
+        //{
+        //    var tokenValidationParameters = new TokenValidationParameters
+        //    {
+        //        ValidateAudience = false,
+        //        ValidateIssuer = false,
+        //        ValidateIssuerSigningKey = true,
+        //        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"])),
+        //        ValidateLifetime = false
+        //    };
+
+        //    var tokenHandler = new JwtSecurityTokenHandler();
+        //    var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out SecurityToken securityToken);
+        //    if (securityToken is not JwtSecurityToken jwtSecurityToken || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+        //        throw new SecurityTokenException("Invalid token");
+
+        //    return principal;
+
+        //}
+
+
+        private ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
         {
+            var Key = Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]);
+
             var tokenValidationParameters = new TokenValidationParameters
             {
-                ValidateAudience = false,
                 ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false,
                 ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"])),
-                ValidateLifetime = false
+                IssuerSigningKey = new SymmetricSecurityKey(Key),
+                ClockSkew = TimeSpan.Zero
             };
 
             var tokenHandler = new JwtSecurityTokenHandler();
             var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out SecurityToken securityToken);
-            if (securityToken is not JwtSecurityToken jwtSecurityToken || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+            JwtSecurityToken jwtSecurityToken = securityToken as JwtSecurityToken;
+            if (jwtSecurityToken == null || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+            {
                 throw new SecurityTokenException("Invalid token");
+            }
+
 
             return principal;
-
         }
+
+
+
+
     }
 }
