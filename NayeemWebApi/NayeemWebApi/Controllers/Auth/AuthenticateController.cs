@@ -14,15 +14,16 @@ namespace NayeemWebApi.Controllers.Auth
 {
     [Route("api/[controller]")]
     [ApiController]
+
     public class AuthenticateController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly IConfiguration _configuration;
 
         public AuthenticateController(
             UserManager<ApplicationUser> userManager,
-            RoleManager<IdentityRole> roleManager,
+            RoleManager<ApplicationRole> roleManager,
             IConfiguration configuration)
         {
             _userManager = userManager;
@@ -72,7 +73,7 @@ namespace NayeemWebApi.Controllers.Auth
 
         [HttpPost]
         [Route("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterModel model)
+        public async Task<IActionResult> Register(RegisterModel model)
         {
             var userExists = await _userManager.FindByNameAsync(model.Username);
             if (userExists != null)
@@ -86,7 +87,15 @@ namespace NayeemWebApi.Controllers.Auth
             };
             var result = await _userManager.CreateAsync(user, model.Password);
             if (!result.Succeeded)
+            {
+                
                 return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "User creation failed! Please check user details and try again." });
+            }
+            else
+            {
+                await _userManager.AddToRoleAsync(user, UserRoles.User);
+            }
+                
 
             return Ok(new Response { Status = "Success", Message = "User created successfully!" });
         }
@@ -109,10 +118,10 @@ namespace NayeemWebApi.Controllers.Auth
             if (!result.Succeeded)
                 return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "User creation failed! Please check user details and try again." });
 
-            if (!await _roleManager.RoleExistsAsync(UserRoles.Admin))
-                await _roleManager.CreateAsync(new IdentityRole(UserRoles.Admin));
-            if (!await _roleManager.RoleExistsAsync(UserRoles.User))
-                await _roleManager.CreateAsync(new IdentityRole(UserRoles.User));
+            //if (!await _roleManager.RoleExistsAsync("Admin"))
+            //    await _roleManager.CreateAsync(new ApplicationRole(""));
+            //if (!await _roleManager.RoleExistsAsync(UserRoles.User))
+            //    await _roleManager.CreateAsync(new ApplicationRole(UserRoles.User));
 
             if (await _roleManager.RoleExistsAsync(UserRoles.Admin))
             {
