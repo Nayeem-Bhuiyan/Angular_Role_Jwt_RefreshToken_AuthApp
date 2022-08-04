@@ -39,14 +39,14 @@ namespace NayeemWebApi.Controllers.Auth
         [Route("login")]
         public async Task<IActionResult> Login([FromBody] LoginModel model)
         {
-            var user = await _userManager.FindByNameAsync(model.Username);
-            if (user == null || !_passwordHasher.VerifyIdentityV3Hash(model.Password, user.PasswordHash)) return Unauthorized(); ;
+            var currentUser = await _userManager.FindByNameAsync(model.Username);
+            if (currentUser == null || !_passwordHasher.VerifyIdentityV3Hash(model.Password, currentUser.PasswordHash)) return Unauthorized(); ;
     
-                var userRoles = await _userManager.GetRolesAsync(user);
+                var userRoles = await _userManager.GetRolesAsync(currentUser);
 
                 var authClaims = new List<Claim>
                 {
-                    new Claim(ClaimTypes.Name, user.UserName),
+                    new Claim(ClaimTypes.Name, currentUser.UserName),
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 };
 
@@ -60,17 +60,18 @@ namespace NayeemWebApi.Controllers.Auth
 
                 _ = int.TryParse(_configuration["JWT:RefreshTokenValidityInDays"], out int refreshTokenValidityInDays);
                 DateTime tokenValidTo = DateTime.Now.AddDays(refreshTokenValidityInDays);
-                user.RefreshToken = refreshToken;
-                user.RefreshTokenExpiryTime =tokenValidTo;
-
-                await _userManager.UpdateAsync(user);
-
-                return Ok(new
-                {
-                    accessToken = token,
-                    refreshToken = refreshToken,
-                    expiration = tokenValidTo
-                });
+            currentUser.RefreshToken = refreshToken;
+            currentUser.RefreshTokenExpiryTime =tokenValidTo;
+            await _userManager.UpdateAsync(currentUser);
+            UserInfoVm objUserInfoVm = new UserInfoVm
+            {
+                accessToken = token,
+                refreshToken = refreshToken,
+                expiration = tokenValidTo,
+                roles=userRoles,
+                user = currentUser,
+            };
+           return Ok(objUserInfoVm);
         }
 
         [HttpPost]
