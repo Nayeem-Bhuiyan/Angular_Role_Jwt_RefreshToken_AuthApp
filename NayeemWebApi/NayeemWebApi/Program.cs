@@ -7,6 +7,8 @@ using NayeemWebApi.ProjectDto;
 using NayeemWebApi.ProjectDto.Entity.UserEntity;
 using NayeemWebApi.Services.TokenDataService;
 using NayeemWebApi.Services.TokenDataService.Interface;
+using NayeemWebApi.Services.AuthDataService;
+using NayeemWebApi.Services.AuthDataService.Interface;
 
 var builder = WebApplication.CreateBuilder(args);
 ConfigurationManager configuration = builder.Configuration;
@@ -54,6 +56,7 @@ builder.Services.AddSwaggerGen();
 
 #region tokenService
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IPasswordHasherService, PasswordHasherService>();
 #endregion
 
 #region Auth identity Related Settings

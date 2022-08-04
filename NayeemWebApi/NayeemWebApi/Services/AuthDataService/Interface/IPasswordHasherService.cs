@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Cryptography.KeyDerivation;
-
-namespace NayeemWebApi.Services.AuthDataService
+namespace NayeemWebApi.Services.AuthDataService.Interface
 {
     public interface IPasswordHasherService
     {

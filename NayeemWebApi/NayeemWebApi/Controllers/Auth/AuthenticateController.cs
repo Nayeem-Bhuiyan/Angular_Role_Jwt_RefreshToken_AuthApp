@@ -1,16 +1,13 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 using NayeemWebApi.ProjectDto.Entity.UserEntity;
+using NayeemWebApi.Services.AuthDataService.Interface;
 using NayeemWebApi.Services.TokenDataService.Interface;
 using NayeemWebApi.ViewModel.Auth;
 using NayeemWebApi.ViewModel.Response;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
-
 namespace NayeemWebApi.Controllers.Auth
 {
     [Route("api/[controller]")]
@@ -22,17 +19,20 @@ namespace NayeemWebApi.Controllers.Auth
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly IConfiguration _configuration;
         private readonly ITokenService _tokenService;
+        private readonly IPasswordHasherService _passwordHasher;
         public AuthenticateController(
             UserManager<ApplicationUser> userManager,
             RoleManager<ApplicationRole> roleManager,
             IConfiguration configuration,
-            ITokenService tokenService
+            ITokenService tokenService,
+            IPasswordHasherService passwordHasher
          )
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
             _tokenService = tokenService;
+            _passwordHasher = passwordHasher;
         }
 
         [HttpPost]
@@ -40,8 +40,8 @@ namespace NayeemWebApi.Controllers.Auth
         public async Task<IActionResult> Login([FromBody] LoginModel model)
         {
             var user = await _userManager.FindByNameAsync(model.Username);
-            if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
-            {
+            if (user == null || !_passwordHasher.VerifyIdentityV3Hash(model.Password, user.PasswordHash)) return Unauthorized(); ;
+    
                 var userRoles = await _userManager.GetRolesAsync(user);
 
                 var authClaims = new List<Claim>
@@ -71,8 +71,6 @@ namespace NayeemWebApi.Controllers.Auth
                     refreshToken = refreshToken,
                     expiration = tokenValidTo
                 });
-            }
-            return Unauthorized();
         }
 
         [HttpPost]
@@ -89,7 +87,7 @@ namespace NayeemWebApi.Controllers.Auth
                 SecurityStamp = Guid.NewGuid().ToString(),
                 UserName = model.Username
             };
-            var result = await _userManager.CreateAsync(user, model.Password);
+            var result = await _userManager.CreateAsync(user, _passwordHasher.GenerateIdentityV3Hash(model.Password));
             if (!result.Succeeded)
             {
 
