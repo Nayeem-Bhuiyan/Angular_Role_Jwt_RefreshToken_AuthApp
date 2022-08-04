@@ -67,9 +67,9 @@ namespace NayeemWebApi.Controllers.Auth
 
                 return Ok(new
                 {
-                    Token = token,
-                    RefreshToken = refreshToken,
-                    Expiration = tokenValidTo
+                    accessToken = token,
+                    refreshToken = refreshToken,
+                    expiration = tokenValidTo
                 });
             }
             return Unauthorized();
