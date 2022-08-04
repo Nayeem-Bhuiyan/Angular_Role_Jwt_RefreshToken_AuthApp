@@ -5,6 +5,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using NayeemWebApi.ProjectDto;
 using NayeemWebApi.ProjectDto.Entity.UserEntity;
+using NayeemWebApi.Services.TokenDataService;
+using NayeemWebApi.Services.TokenDataService.Interface;
 
 var builder = WebApplication.CreateBuilder(args);
 ConfigurationManager configuration = builder.Configuration;
@@ -49,6 +51,10 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+#region tokenService
+builder.Services.AddScoped<ITokenService, TokenService>();
+#endregion
 
 #region Auth identity Related Settings
 builder.Services.Configure<IdentityOptions>(options =>

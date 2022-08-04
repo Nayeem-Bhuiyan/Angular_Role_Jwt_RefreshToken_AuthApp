@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using NayeemWebApi.ProjectDto.Entity.UserEntity;
+using NayeemWebApi.Services.TokenDataService.Interface;
 using NayeemWebApi.ViewModel.Auth;
 using NayeemWebApi.ViewModel.Response;
 using System.IdentityModel.Tokens.Jwt;
@@ -20,15 +21,18 @@ namespace NayeemWebApi.Controllers.Auth
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly IConfiguration _configuration;
-
+        private readonly ITokenService _tokenService;
         public AuthenticateController(
             UserManager<ApplicationUser> userManager,
             RoleManager<ApplicationRole> roleManager,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            ITokenService tokenService
+         )
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
+            _tokenService = tokenService;
         }
 
         [HttpPost]
@@ -51,21 +55,21 @@ namespace NayeemWebApi.Controllers.Auth
                     authClaims.Add(new Claim(ClaimTypes.Role, userRole));
                 }
                
-                var token = CreateToken(authClaims);
-                var refreshToken = GenerateRefreshToken();
+                var token =_tokenService.GenerateAccessToken(authClaims);
+                var refreshToken =_tokenService.GenerateRefreshToken();
 
                 _ = int.TryParse(_configuration["JWT:RefreshTokenValidityInDays"], out int refreshTokenValidityInDays);
-
+                DateTime tokenValidTo = DateTime.Now.AddDays(refreshTokenValidityInDays);
                 user.RefreshToken = refreshToken;
-                user.RefreshTokenExpiryTime = DateTime.Now.AddDays(refreshTokenValidityInDays);
+                user.RefreshTokenExpiryTime =tokenValidTo;
 
                 await _userManager.UpdateAsync(user);
 
                 return Ok(new
                 {
-                    Token = new JwtSecurityTokenHandler().WriteToken(token),
+                    Token = token,
                     RefreshToken = refreshToken,
-                    Expiration = token.ValidTo
+                    Expiration = tokenValidTo
                 });
             }
             return Unauthorized();
@@ -88,7 +92,7 @@ namespace NayeemWebApi.Controllers.Auth
             var result = await _userManager.CreateAsync(user, model.Password);
             if (!result.Succeeded)
             {
-                
+
                 return StatusCode(StatusCodes.Status500InternalServerError, new Response { Status = "Error", Message = "User creation failed! Please check user details and try again." });
             }
             else
@@ -99,7 +103,7 @@ namespace NayeemWebApi.Controllers.Auth
                 //}
                 await _userManager.AddToRoleAsync(user, UserRoles.User);
             }
-                
+
 
             return Ok(new Response { Status = "Success", Message = "User created successfully!" });
         }
@@ -150,7 +154,7 @@ namespace NayeemWebApi.Controllers.Auth
             string? accessToken = tokenModel.AccessToken;
             string? refreshToken = tokenModel.RefreshToken;
 
-            var principal = GetPrincipalFromExpiredToken(accessToken);
+            var principal =_tokenService.GetPrincipalFromExpiredToken(accessToken);
             if (principal == null)
             {
                 return BadRequest("Invalid access token or refresh token");
@@ -169,17 +173,39 @@ namespace NayeemWebApi.Controllers.Auth
                 return BadRequest("Invalid access token or refresh token");
             }
 
-            var newAccessToken = CreateToken(principal.Claims.ToList());
-            var newRefreshToken = GenerateRefreshToken();
+            var newAccessToken =_tokenService.GenerateAccessToken(principal.Claims.ToList());
+            var newRefreshToken = _tokenService.GenerateRefreshToken();
 
             user.RefreshToken = newRefreshToken;
             await _userManager.UpdateAsync(user);
 
             return new ObjectResult(new
             {
-                accessToken = new JwtSecurityTokenHandler().WriteToken(newAccessToken),
+                accessToken =newAccessToken,
                 refreshToken = newRefreshToken
             });
+
+
+
+
+
+            //var principal = _tokenService.GetPrincipalFromExpiredToken(accessToken);
+            //var username = principal.Identity.Name; //this is mapped to the Name claim by default
+
+            //var user = _usersDb.Users.SingleOrDefault(u => u.Username == username);
+            //if (user == null || user.RefreshToken != refreshToken) return BadRequest();
+
+            //var newJwtToken = _tokenService.GenerateAccessToken(principal.Claims);
+            //var newRefreshToken = _tokenService.GenerateRefreshToken();
+
+            //user.RefreshToken = newRefreshToken;
+            //await _usersDb.SaveChangesAsync();
+
+            //return new ObjectResult(new
+            //{
+            //    token = newJwtToken,
+            //    refreshToken = newRefreshToken
+            //});
         }
 
         [Authorize]
@@ -210,85 +236,5 @@ namespace NayeemWebApi.Controllers.Auth
 
             return NoContent();
         }
-
-        private JwtSecurityToken CreateToken(List<Claim> authClaims)
-        {
-            var authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
-            _ = int.TryParse(_configuration["JWT:TokenValidityInMinutes"], out int tokenValidityInMinutes);
-
-            var token = new JwtSecurityToken(
-                issuer: _configuration["JWT:ValidIssuer"],
-                audience: _configuration["JWT:ValidAudience"],
-                expires: DateTime.Now.AddMinutes(tokenValidityInMinutes),
-                claims: authClaims,
-                signingCredentials: new SigningCredentials(authSigningKey, SecurityAlgorithms.HmacSha256)
-                );
-
-            return token;
-        }
-
-        private static string GenerateRefreshToken()
-        {
-            var randomNumber = new byte[64];
-            using var rng = RandomNumberGenerator.Create();
-            rng.GetBytes(randomNumber);
-            return Convert.ToBase64String(randomNumber);
-        }
-
-
-
-
-
-
-        //private ClaimsPrincipal? GetPrincipalFromExpiredToken(string? token)
-        //{
-        //    var tokenValidationParameters = new TokenValidationParameters
-        //    {
-        //        ValidateAudience = false,
-        //        ValidateIssuer = false,
-        //        ValidateIssuerSigningKey = true,
-        //        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"])),
-        //        ValidateLifetime = false
-        //    };
-
-        //    var tokenHandler = new JwtSecurityTokenHandler();
-        //    var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out SecurityToken securityToken);
-        //    if (securityToken is not JwtSecurityToken jwtSecurityToken || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
-        //        throw new SecurityTokenException("Invalid token");
-
-        //    return principal;
-
-        //}
-
-
-        private ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
-        {
-            var Key = Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]);
-
-            var tokenValidationParameters = new TokenValidationParameters
-            {
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = false,
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Key),
-                ClockSkew = TimeSpan.Zero
-            };
-
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out SecurityToken securityToken);
-            JwtSecurityToken jwtSecurityToken = securityToken as JwtSecurityToken;
-            if (jwtSecurityToken == null || !jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
-            {
-                throw new SecurityTokenException("Invalid token");
-            }
-
-
-            return principal;
-        }
-
-
-
-
     }
 }
