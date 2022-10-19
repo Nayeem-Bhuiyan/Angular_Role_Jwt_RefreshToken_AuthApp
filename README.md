@@ -12,6 +12,6 @@ Open client project using vscode editor
 
 Run comman in vscode editor terminal (Type :npm install)(Press:Enter Button)
 
-Now run api project first
+Now run api project first(From visual Studio)
 
 Then run client project using command (ng serve --open) in vscode terminal
